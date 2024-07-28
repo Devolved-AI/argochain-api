@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Data Display</title>
+    <style>
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th, .data-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        .data-table th {
+            background-color: #f2f2f2;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .pagination {
+            margin: 10px 0;
+        }
+
+        .pagination button {
+            margin: 0 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+<h1>Latest Accounts</h1>
+<table id="accounts" class="data-table">
+    <!-- Account data will be displayed here -->
+</table>
+<div class="pagination" id="accounts-pagination"></div>
+
+<h1>Latest Blocks</h1>
+<table id="blocks" class="data-table">
+    <!-- Block data will be displayed here -->
+</table>
+<div class="pagination" id="blocks-pagination"></div>
+
+<h1>Latest Transactions</h1>
+<table id="transactions" class="data-table">
+    <!-- Transaction data will be displayed here -->
+</table>
+<div class="pagination" id="transactions-pagination"></div>
+
+<script>
+    const state = {
+        accounts: { page: 1, limit: 10, sort: 'timestamp', order: 'DESC' },
+        blocks: { page: 1, limit: 10, sort: 'timestamp', order: 'DESC' },
+        transactions: { page: 1, limit: 10, sort: 'block_number', order: 'DESC' }
+    };
+
+    async function fetchData(endpoint, elementId, paginationId, type) {
+        const { page, limit, sort, order } = state[type];
+        const url = `${endpoint}?page=${page}&limit=${limit}&sort=${sort}&order=${order}`;
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            const container = document.getElementById(elementId);
+            const paginationContainer = document.getElementById(paginationId);
+
+            container.innerHTML = '';
+
+            // Create table header
+            if (data.length > 0) {
+                const tableHeader = document.createElement('tr');
+                Object.keys(data[0]).forEach(key => {
+                    const th = document.createElement('th');
+                    th.textContent = key;
+                    th.onclick = () => {
+                        state[type].sort = key;
+                        state[type].order = state[type].order === 'ASC' ? 'DESC' : 'ASC';
+                        fetchData(endpoint, elementId, paginationId, type);
+                    };
+                    tableHeader.appendChild(th);
+                });
+                container.appendChild(tableHeader);
+            }
+
+            // Populate table rows
+            data.forEach(item => {
+                const tableRow = document.createElement('tr');
+                Object.keys(item).forEach(key => {
+                    const td = document.createElement('td');
+                    if (key === 'tx_hash') {
+                        const a = document.createElement('a');
+                        a.href = `transaction.html?tx_hash=${item[key]}`;
+                        a.textContent = item[key];
+                        td.appendChild(a);
+                    } else if (key === 'address' || key === 'from_address' || key === 'to_address') {
+                        const a = document.createElement('a');
+                        a.href = `account.html?address=${item[key]}`;
+                        a.textContent = item[key];
+                        td.appendChild(a);
+                    } else {
+                        td.textContent = item[key];
+                    }
+                    tableRow.appendChild(td);
+                });
+                container.appendChild(tableRow);
+            });
+
+            // Update pagination
+            paginationContainer.innerHTML = `
+                    <button onclick="changePage('${type}', ${page - 1})" ${page === 1 ? 'disabled' : ''}>Previous</button>
+                    <span>Page ${page}</span>
+                    <button onclick="changePage('${type}', ${page + 1})">Next</button>
+                `;
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        }
+    }
+
+    function changePage(type, newPage) {
+        if (newPage < 1) return;
+        state[type].page = newPage;
+        fetchData(`http://localhost:3300/${type}`, `${type}`, `${type}-pagination`, type);
+    }
+
+    // Initial fetch for accounts, blocks, and transactions
+    fetchData('http://localhost:3300/accounts', 'accounts', 'accounts-pagination', 'accounts');
+    fetchData('http://localhost:3300/blocks', 'blocks', 'blocks-pagination', 'blocks');
+    fetchData('http://localhost:3300/transactions', 'transactions', 'transactions-pagination', 'transactions');
+</script>
+</body>
+</html>
